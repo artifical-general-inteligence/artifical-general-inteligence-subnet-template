@@ -1,0 +1,10 @@
+communex
+typer
+uvicorn
+keylimiter
+pydantic-settings
+confluent_kafka
+pydantic
+requests
+cryptography
+loguru
