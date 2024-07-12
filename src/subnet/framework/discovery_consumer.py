@@ -1,23 +1,32 @@
 import json
+from datetime import time
+
 from loguru import logger
 from pydantic import ValidationError
 from .config import settings
 from abc import ABC, abstractmethod
 from confluent_kafka import Consumer, KafkaError
-from .messages import load_public_key, verify_signature, verify_message
+from .messages import verify_message
+import threading
 
 
-class ConsumerBase(ABC):
-    def __init__(self, group_id, topic):
+class DiscoveryConsumer(ABC):
+    def __init__(self):
+        self.topic = 'discovery'
+        self.group_id = 'discovery_group'
+        self.discovery_data = {}
+        self.lock = threading.Lock()
         self.consumer = Consumer({
             'bootstrap.servers': settings.kafka_bootstrap_servers,
-            'group.id': group_id,
-            'auto.offset.reset': 'earliest'
+            'group.id': self.group_id,
+            'auto.offset.reset': 'earliest',
+            'enable.auto.commit': False,
         })
-        self.consumer.subscribe([topic])
 
     def consume(self):
         try:
+            self.consumer.subscribe([self.topic])
+
             while True:
                 message_payload = self.consumer.poll(1.0)
                 if message_payload is None:
@@ -39,20 +48,52 @@ class ConsumerBase(ABC):
         try:
             logger.info(f"Preprocessing message payload {message_payload}")
             message_payload_dict = json.loads(message_payload)
-            message = message_payload_dict.get("message")
+
+            public_key = message_payload_dict.get("public_key")
             signature = message_payload_dict.get("signature")
-            public_key = load_public_key(message_payload_dict.get("public_key"))
+            message = message_payload_dict.get("message")
 
             if not verify_message(public_key, message, signature):
                 logger.error("Invalid signature for message: {message}")
                 return
             message_dict = json.loads(message)
-            self.process_message(message_dict)
+
+            key = message_dict.get("key")
+            if key:
+                with self.lock:
+                    self.discovery_data[key] = message_dict
+
         except ValidationError as e:
             logger.info(f"Validation error: {e}")
         except json.JSONDecodeError as e:
             logger.info(f"Failed to decode message: {e}")
 
-    @abstractmethod
-    def process_message(self, message):
-        pass
+    def get_discovery_data(self):
+        with self.lock:
+            return self.discovery_data.copy()
+
+
+def start_discovery_consumer():
+    consumer = DiscoveryConsumer()
+    thread = threading.Thread(target=consumer.consume)
+    thread.start()
+    return thread
+
+def periodic_print(consumer):
+    while True:
+        data = consumer.get_discovery_data()
+        logger.info(f"Discovery data: {data}")
+        time.sleep(8)
+
+
+if __name__ == "__main__":
+    consumer, thread = start_discovery_consumer()
+    logger.info("Discovery consumer started")
+
+    # Start periodic printing in a separate thread
+    print_thread = threading.Thread(target=periodic_print, args=(consumer,))
+    print_thread.start()
+
+    # Wait for consumer thread to finish (it won't in this example)
+    thread.join()
+    print_thread.join()

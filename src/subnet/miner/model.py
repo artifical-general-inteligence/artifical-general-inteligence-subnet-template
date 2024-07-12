@@ -2,7 +2,7 @@ from communex.module import Module, endpoint
 from communex.key import generate_keypair
 from keylimiter import TokenBucketLimiter
 
-from src.subnet.miner.discovery import start_discovery_consumer, start_discovery_producer
+from src.subnet.miner.discovery import start_discovery_producer
 
 
 class Miner(Module):
