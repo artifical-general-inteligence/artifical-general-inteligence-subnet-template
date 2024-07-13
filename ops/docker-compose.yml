@@ -1,63 +1,17 @@
 version: '3.8'
 
 services:
-  redpanda:
-    image: docker.redpanda.com/redpandadata/redpanda:latest
-    command:
-      - redpanda start
-      - --smp 1
-      - --overprovisioned
-      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
-      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092
-      - --pandaproxy-addr=internal://0.0.0.0:8082,external://0.0.0.0:18082
-      - --advertise-pandaproxy-addr=internal://redpanda:8082,external://localhost:18082
-      - --schema-registry-addr=internal://0.0.0.0:8081,external://0.0.0.0:18081
-      - --rpc-addr=redpanda:33145
-      - --advertise-rpc-addr=redpanda:33145
-      - --mode=dev-container
+  nats:
+    image: nats:latest
     ports:
-      - 18081:18081
-      - 18082:18082
-      - 19092:19092
-      - 9644:9644
+      - "4222:4222"  # NATS client connections
+      - "8222:8222"  # NATS monitoring
     volumes:
-      - redpanda_data:/var/lib/redpanda/data
-    networks:
-      - redpanda_network
-    healthcheck:
-      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true' || exit 1"]
-      interval: 15s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
-
-  console:
-    image: docker.redpanda.com/redpandadata/console:latest
-    entrypoint: /bin/sh
-    command: -c "echo \"$$CONSOLE_CONFIG_FILE\" > /tmp/config.yml; /app/console"
+      - ./nats.conf:/etc/nats/nats.conf  # Mount the NATS configuration file
+      - nats_data:/data
+    command: -c /etc/nats/nats.conf -js -m 8222 -sd /data
     environment:
-      CONFIG_FILEPATH: /tmp/config.yml
-      CONSOLE_CONFIG_FILE: |
-        kafka:
-          brokers: ["redpanda:9092"]
-          schemaRegistry:
-            enabled: true
-            urls: ["http://redpanda:8081"]
-        redpanda:
-          adminApi:
-            enabled: true
-            urls: ["http://redpanda:9644"]
-        connect:
-          enabled: true
-          clusters:
-            - name: local-connect-cluster
-              url: http://connect:8083
-    ports:
-      - 8080:8080
-    networks:
-      - redpanda_network
-    depends_on:
-      - redpanda
+      - NATS_CONFIG=/etc/nats/nats.conf
 
   postgres:
     image: postgres:latest
@@ -71,6 +25,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
 volumes:
+  nats_data:
   postgres_data:
   redpanda_data:
 

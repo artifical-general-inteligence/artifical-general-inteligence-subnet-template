@@ -5,15 +5,23 @@ from substrateinterface import Keypair
 from .config import settings
 from abc import ABC, abstractmethod
 from confluent_kafka import Producer, KafkaError
+
+from .memgraph_sasl_auth import MetagraphSASLAuth
 from .messages import sign_message
 
 
 class ProducerBase(ABC):
-    def __init__(self, keypair: Keypair):
+    def __init__(self, miner_uid: int, keypair: Keypair):
+        auth = MetagraphSASLAuth(miner_uid, keypair.ss58_address)
+        self.keypair = keypair
         self.producer = Producer({
-            'bootstrap.servers': settings.kafka_bootstrap_servers
+            'bootstrap.servers': settings.kafka_bootstrap_servers,
+            'sasl.mechanism': 'SCRAM-SHA-512',
+            'security.protocol': 'SASL_PLAINTEXT',
+            'sasl.username': auth.miner_uid,
+            'sasl.password': auth.miner_hotkey,
+            'sasl.oauthbearer.config': auth.sasl_callback
         })
-        self.keypair= keypair
 
     def produce(self, topic, miner_uid: int, message_objs):
         prepared_message = self.prepare_message(message_objs)

@@ -9,3 +9,5 @@ requests
 cryptography
 loguru
 confluent-kafka
+nats-py
+aiohttp

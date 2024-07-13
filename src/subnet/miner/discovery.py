@@ -11,7 +11,7 @@ from src.subnet.miner.clients.ollama_cient import OllamaClient
 
 class DiscoveryProducer(ProducerBase):
     def __init__(self, keypair: Keypair, miner_uid: int, ollama_client):
-        super().__init__(keypair)
+        super().__init__(miner_uid, keypair)
         self.miner_uid = miner_uid
         self.ollama_client = ollama_client
         self.topic = "discovery"

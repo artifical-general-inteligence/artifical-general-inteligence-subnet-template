@@ -1,5 +1,5 @@
 import json
-from datetime import time
+import traceback
 
 from loguru import logger
 from pydantic import ValidationError
@@ -39,13 +39,16 @@ class DiscoveryConsumer(ABC):
                         logger.error(message_payload.error())
                         break
 
-                self.preprocess_message(message_payload.value().decode('utf-8'))
+                uid = int(message_payload.key().decode('utf-8')) if message_payload.key() else None
+                message_data = message_payload.value().decode('utf-8')
+
+                self.preprocess_message(uid, message_data)
         except Exception as e:
-            logger.error(f"Error consuming messages: {e}")
+            logger.error(f"Error consuming messages: {e} {traceback.format_exc()}")
         finally:
             self.consumer.close()
 
-    def preprocess_message(self, message_payload):
+    def preprocess_message(self, uid: int, message_payload):
         try:
             logger.info(f"Preprocessing message payload {message_payload}")
             message_payload_dict = json.loads(message_payload)
@@ -59,10 +62,7 @@ class DiscoveryConsumer(ABC):
                 return
             message_dict = json.loads(message)
 
-            key = message_dict.get("key")
-            if key:
-                with self.lock:
-                    self.discovery_data[key] = message_dict
+            self.discovery_data[uid] = message_dict
 
         except ValidationError as e:
             logger.info(f"Validation error: {e}")
@@ -78,16 +78,16 @@ def start_discovery_consumer():
     consumer = DiscoveryConsumer()
     thread = threading.Thread(target=consumer.consume)
     thread.start()
-    return thread
-
+    return consumer, thread
 
 def periodic_print(consumer):
     while True:
         data = consumer.get_discovery_data()
         logger.info(f"Discovery data: {data}")
+        import time
         time.sleep(8)
 
-
+# Usage example:
 if __name__ == "__main__":
     consumer, thread = start_discovery_consumer()
     logger.info("Discovery consumer started")

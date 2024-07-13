@@ -12,7 +12,7 @@ def sign_message(keypair: Keypair, message: str):
     return signature.hex(), keypair.public_key.hex()
 
 
-def verify_message(public_key_hex: str, message: str, received_signature_hex: str):
+def verify_message(public_key_hex: str, message: str, received_signature_hex: str, ss58_format: int = 42):
     """
     Verify a signed message with a public key and signature.
     :param public_key_hex: Public key in hex format
@@ -22,7 +22,7 @@ def verify_message(public_key_hex: str, message: str, received_signature_hex: st
     """
     public_key = bytes.fromhex(public_key_hex)
     received_signature = bytes.fromhex(received_signature_hex)
-    verifier_keypair = Keypair(public_key=public_key, crypto_type=KeypairType.SR25519)
+    verifier_keypair = Keypair(public_key=public_key, crypto_type=KeypairType.SR25519, ss58_format=ss58_format)
     is_valid = verifier_keypair.verify(message.encode('utf-8'), received_signature)
     return is_valid
 

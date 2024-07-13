@@ -1,0 +1,21 @@
+{
+  "alice": {
+    "pass": "alice",
+    "account": "APP"
+  },
+  "bob": {
+    "pass": "bob",
+    "account": "APP",
+    "permissions": {
+      "pub": {
+        "allow": ["miner.discovery.1"]
+      },
+      "sub": {
+        "allow": ["bob.>"]
+      },
+      "resp": {
+        "max": 1
+      }
+    }
+  }
+}
