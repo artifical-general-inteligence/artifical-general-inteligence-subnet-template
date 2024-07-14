@@ -65,6 +65,7 @@ async def main():
 
                 # TODO, check if exists on metagraph,
                 # TODO: check if is a miner or a validator
+                # create metagraph service, which is publishing to the metagraph stream
 
                 xkey_seed = "xkey_seed"
                 claims = {

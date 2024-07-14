@@ -12,3 +12,4 @@ confluent-kafka
 nats-py
 aiohttp
 pyjwt
+bittensor

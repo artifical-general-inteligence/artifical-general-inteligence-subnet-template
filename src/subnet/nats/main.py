@@ -82,6 +82,6 @@ async def main():
     await nc.close()
 
 if __name__ == '__main__':
-    #asyncio.run(configure())
+    asyncio.run(configure())
     asyncio.run(main())
-    #asyncio.run(get_messages())
+    asyncio.run(get_messages())
