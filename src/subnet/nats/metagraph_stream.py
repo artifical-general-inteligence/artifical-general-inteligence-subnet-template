@@ -1,19 +1,13 @@
 import asyncio
 import json
-
 import nats
-import numpy as np
 import argparse
 import time
 import bittensor as bt
-from loguru import logger
-import random
-
-from nats.aio.errors import ErrConnectionClosed, ErrTimeout, ErrNoServers
-from nats.js.api import StreamConfig, RetentionPolicy
+from nats.js.errors import KeyNotFoundError
 
 
-async def get_miners(metagraph):
+async def get_metagraph_items(metagraph):
     results = []
     for uid in range(metagraph.n.item()):
         results.append({
@@ -27,33 +21,19 @@ async def get_miners(metagraph):
         return results
 
 
-async def configure():
+async def verify_uid_hotkey(uid: str, hotkey: str):
     try:
         nc = await nats.connect("localhost", user='auth', password='auth')
         js = nc.jetstream()
-        stream_name = "metagraph"
-        subject_name = "metagraph.*"
-        stream_config = StreamConfig(
-            name=stream_name,
-            subjects=[subject_name],
-            retention=RetentionPolicy.LIMITS,
-            max_msgs_per_subject=1,
-        )
-        ack = await js.add_stream(config=stream_config)
-        print(f"Stream '{stream_name}' with subject '{subject_name}' configured successfully.")
-        print("Stream configuration ACK:", ack)
-    except ErrConnectionClosed:
-        print("Connection closed prematurely.")
-    except ErrTimeout:
-        print("Request timed out.")
-    except ErrNoServers:
-        print("No NATS servers available.")
-    except Exception as e:
-        print(f"An error occurred: {e}")
+        kv = await js.create_key_value(bucket="metagraph")
+        entry = await kv.get(uid)
+        json_value = entry.value.decode('utf-8')
+        value_dict = json.loads(json_value)
+        return value_dict["hotkey"] == hotkey, value_dict
+    except KeyNotFoundError:
+        return False, None
     finally:
-        if nc.is_connected:
-            await nc.close()
-
+        await nc.close()
 
 async def run():
     parser = argparse.ArgumentParser()
@@ -68,27 +48,36 @@ async def run():
     while True:
         metagraph = subtensor.metagraph(config.netuid)
         metagraph.sync(subtensor=subtensor)
-        miners = await get_miners(metagraph)
+        items = await get_metagraph_items(metagraph)
 
         nc = await nats.connect("localhost", user='auth', password='auth')
         js = nc.jetstream()
-        subject_base = "metagraph"
 
-        for miner in miners:
-            uid = miner["uid"]
-            subject_name = f"{subject_base}.{uid}"
-            message = json.dumps(miner).encode('utf-8')
-            ack = await js.publish(subject_name, message)
-            print(f"Published to {subject_name}, message: {message}, ack: {ack}")
+        kv = await js.create_key_value(bucket="metagraph")
+        for item in items:
+            json_item = json.dumps(item)
+            await kv.put(str(item["uid"]), json_item.encode('utf-8'))
 
         time.sleep(12 * 10)
 
 
 if __name__ == "__main__":
-    asyncio.run(configure())
     asyncio.run(run())
 
+## metagraph_stream
+# put in proper folder structure
+# make microservice
+# create pydantic settings class
+# create dockerfile
 
+## auth_service
+# put in proper folder structure
+# make microservice
+# create pydantic settings class
+# create dockerfile
+
+# create docker compose
+# auth_service  depends on metagraph_stream
 
 
 

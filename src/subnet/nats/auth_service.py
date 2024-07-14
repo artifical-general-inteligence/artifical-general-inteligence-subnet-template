@@ -7,6 +7,7 @@ import jwt
 from nats.aio.client import Client as NATS
 
 from src.subnet.framework.messages import verify_message
+from src.subnet.nats import metagraph_stream
 
 
 def handle_sigterm(loop):
@@ -62,17 +63,17 @@ async def main():
                 response["jwt"] = None
                 response["error"] = "Invalid user credentials"
             else:
-
-                # TODO, check if exists on metagraph,
-                # TODO: check if is a miner or a validator
-                # create metagraph service, which is publishing to the metagraph stream
-
-                xkey_seed = "xkey_seed"
-                claims = {
-                    "user": user_identity,
-                    "role": "miner"
-                }
-                response["jwt"] = jwt.encode(claims, xkey_seed, algorithm="HS256")
+                is_valid, item = await metagraph_stream.verify_uid_hotkey(uid, hotkey)
+                if is_valid:
+                    xkey_seed = "xkey_seed"
+                    claims = {
+                        "user": user_identity,
+                        "role": item["role"]
+                    }
+                    response["jwt"] = jwt.encode(claims, xkey_seed, algorithm="HS256")
+                else:
+                    response["jwt"] = None
+                    response["error"] = "Invalid user credentials"
 
             await nc.publish(reply, json.dumps(response).encode())
 
