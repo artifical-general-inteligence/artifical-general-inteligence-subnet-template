@@ -2,7 +2,12 @@ import asyncio
 import json
 import signal
 import sys
+
+import jwt
 from nats.aio.client import Client as NATS
+
+from src.subnet.framework.messages import verify_message
+
 
 def handle_sigterm(loop):
     for task in asyncio.all_tasks(loop):
@@ -24,7 +29,9 @@ async def main():
         "servers": ["nats://127.0.0.1:4222"],
         "error_cb": error_cb,
         "closed_cb": closed_cb,
-        "reconnected_cb": reconnected_cb
+        "reconnected_cb": reconnected_cb,
+        "user": "auth",
+        "password": "auth",
     }
 
     await nc.connect(**options)
@@ -32,23 +39,50 @@ async def main():
     async def message_handler(msg):
         subject = msg.subject
         reply = msg.reply
-        data = msg.data.decode()
-        print(f"Received a message on '{subject} {reply}': {data}")
+        try:
+            data = msg.data.decode()
 
-        auth_request = json.loads(data)
-        connect_opts = auth_request.get("connect_opts", {})
-        user = connect_opts.get("user")
-        password = connect_opts.get("pass")
+            # Decode JWT without verifying first to extract user and password
+            auth_request = jwt.decode(data, options={"verify_signature": False})
+            connect_opts = auth_request.get("nats", {}).get("connect_opts", {})
 
-        response = {}
-        if user == "valid_user" and password == "valid_pass":
-            response["jwt"] = "dummy-jwt"
-            response["error"] = None
-        else:
-            response["jwt"] = None
-            response["error"] = "Invalid user credentials"
+            user_identity = connect_opts.get("user")
+            user_identity_dict = json.loads(user_identity)
+            hotkey = user_identity_dict.get("hotkey")
+            uid = user_identity_dict.get("uid")
 
-        await nc.publish(reply, json.dumps(response).encode())
+            password = connect_opts.get("pass")
+            password_dict = json.loads(password)
+            signature = password_dict.get("signature")
+            public_key = password_dict.get("public_key")
+
+            response = {}
+
+            if not verify_message(public_key, user_identity, signature):
+                response["jwt"] = None
+                response["error"] = "Invalid user credentials"
+            else:
+
+                # TODO, check if exists on metagraph,
+                # TODO: check if is a miner or a validator
+
+                xkey_seed = "xkey_seed"
+                claims = {
+                    "user": user_identity,
+                    "role": "miner"
+                }
+                response["jwt"] = jwt.encode(claims, xkey_seed, algorithm="HS256")
+
+            await nc.publish(reply, json.dumps(response).encode())
+
+        except UnicodeDecodeError:
+            print(f"Failed to decode message data on '{subject} {reply}'")
+            response = {"error": "Invalid message encoding"}
+            await nc.publish(reply, json.dumps(response).encode())
+        except json.JSONDecodeError:
+            print(f"Failed to parse JSON on '{subject} {reply}'")
+            response = {"error": "Invalid JSON format"}
+            await nc.publish(reply, json.dumps(response).encode())
 
     await nc.subscribe("$SYS.REQ.USER.AUTH", cb=message_handler)
 

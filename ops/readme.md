@@ -66,3 +66,15 @@ docker exec -it ops-redpanda-1 /bin/bash -c "rpk topic consume discovery --broke
 ```bash
 docker exec -it ops-redpanda-1 /bin/bash -c "rpk topic create receipts --brokers=redpanda:9092 --config="retention.ms=2592000000""
 ````
+=================================================
+
+
+docker run --rm -it natsio/nats-box:latest
+
+e56e5973c82f:~# nsc generate nkey --account
+ISSUER_NKEY=SAABMIITPFWQZLBDK4NM4244HSI2VNAAQ2JIMGIPJSJFZMQEXHWBPXSHCY
+ISSUER_NSEED=AD5ZH4IWYP23NQSONT4LOY32ZIWCDRYF54JFS5HZVWI3FOE7L6JIEKX7
+
+e56e5973c82f:~# nsc generate nkey --curve
+ISSUER_XKEY=SXANNQJ7DFYBKYBEOWWIIODYEB6GVZAM4R7622Z4XZLMULWKVWYYIOYXA4
+ISSUER_XSEED=XDPRGQZ3ND56XAICDJ6TOYJB2FCSOWC3QPSTNAR7WIA5D5NC4AVS6HX6

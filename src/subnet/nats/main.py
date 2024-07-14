@@ -1,8 +1,12 @@
 import asyncio
+import json
 
 import nats
 from nats.aio.errors import ErrConnectionClosed, ErrTimeout, ErrNoServers
 from nats.js.api import StreamConfig, RetentionPolicy
+from substrateinterface import Keypair
+
+from src.subnet.framework.messages import sign_message
 
 
 async def configure():
@@ -44,19 +48,40 @@ async def get_messages():
 
 
 async def main():
-    nc = await nats.connect("localhost", user='auth', password='auth')
+
+    mnemonic = Keypair.generate_mnemonic()
+    keypair = Keypair.create_from_mnemonic(mnemonic)
+    user_identity_params = {
+        "uid": 1,
+        "hotkey":  keypair.ss58_address,
+    }
+
+    user_identity = json.dumps(user_identity_params)
+
+    signature, public_key = sign_message(keypair, user_identity)
+    password_params = {
+        "signature": signature,
+        "public_key": public_key
+    }
+    password = json.dumps(password_params)
+
+    nc = await nats.connect("localhost", user=user_identity, password=password)
+
     js = nc.jetstream()
     subject_base = "miner.discovery"
 
-    for i in range(1, 11):
+    for i in range(1, 2):
         subject_name = f"{subject_base}.{i}"
-        message = f"some message here {i}".encode('utf-8')
+
+        message_content = {"text": f"some message here {i}"}
+        message = json.dumps(message_content).encode('utf-8')
+
         ack = await js.publish(subject_name, message)
-        print(f"Published to {subject_name}, ack: {ack}")
+        print(f"Published to {subject_name}, message: {message}, ack: {ack}")
 
     await nc.close()
 
 if __name__ == '__main__':
-    asyncio.run(configure())
-    #asyncio.run(main())
+    #asyncio.run(configure())
+    asyncio.run(main())
     #asyncio.run(get_messages())

@@ -27,7 +27,3 @@ services:
 volumes:
   nats_data:
   postgres_data:
-  redpanda_data:
-
-networks:
-  redpanda_network:
